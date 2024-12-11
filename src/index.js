@@ -6,42 +6,6 @@ const app = express();
 
 app.use("/admin",Adminauth)
 
-
- // so till now we were using these inner functions but they have a name they are called middlewares 
- //middleware is a function which has access to the route req , res , next object and comes in between the req res cycle 
-
- // so why middleware ?
- // lets discuss with some example 
- // suppose we want to make some admin routes where admin can perfrom opearions 
-// one thing to read body of req we need to use express.json middleware for now but ill explain it later on
-app.use(express.json())
- app.post("/admin/getAllData", (req,res)=>{
-    // Auth check logic 
-    const correctPassword = "xxxx";
-    const enteredPassword = req.body.password
-    if(correctPassword === enteredPassword)
-    { 
-        // db logic 
-        res.send("all data sent ");
-    }
-    else res.status(401).send("unauthorized access")
- })
-
- app.post("/admin/getPaymentStats", (req,res)=>{
-    // Auth check logic 
-    const correctPassword = "xxxx";
-    const enteredPassword = req.body.password
-    if(correctPassword === enteredPassword)
-    { 
-        // db logic 
-        res.send("all data sent ");
-    }
-    else res.status(401).send("unauthorized access")
- })
-
-//  we dont want auth check in the signup api since use your common sence bro (iski bhi explanation duga to sar gya tumara )
-// so in that case we either need to give a conditon in the middleware funtion like if user.url is /signup then simply call next()
-// or define this route above that middleware's defination then also it will work the way we want
  app.post("/admin/signup", (req,res)=>{
    
     
@@ -51,9 +15,17 @@ app.use(express.json())
    
  })
 
-// now imagine writing hundereds of admin routes , then writing the same logic for auth check agiain and again is a 
-//bad practice and will also voilate the dry principle(do not repeat yoursself )
-//so here comes the middlewares for the solution 
+ // error middlewares  -> denfined at the last of all the code if any error is thrown in between it will catch all the errros 
+// -> takes four parameters error , request , response , next --> order matters so write carefully 
+ app.use("/",(err,req,res,next)=>{
+    if(err)
+    {
+        res.status(500).send("something went wrong")
+    }
+ })
+
+// If the error-handling middleware is defined at the end of the middleware stack in your Express application, and it is the last piece of middleware, you typically don’t need to call next, as there’s no subsequent middleware to pass control to.
+
 
 
 app.listen(7777,()=>{
