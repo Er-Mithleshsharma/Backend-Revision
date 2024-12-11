@@ -1,76 +1,123 @@
 const express = require("express");
 const app = express();
 
-// Types of methods in http requests 
-app.get("/",(req,res)=>{
-    res.send("used to get data from backend");
-})
-app.post("/",(req,res)=>{
-    res.send("used to send data to backend");
-})
+// we can pass any number of route handlers in btw the req -> res cycle for a single route 
 
-app.patch("/",(req,res)=>{
-    res.send("Partially updates the resource with only the fields provided.");
-})
+app.get("/hero",(req,res)=>{
+   console.log("function 1")
+   res.send("function 1")
+},
+(req,res)=>{
+    console.log("function 2")
+},
+(req,res)=>{
+    console.log("function 3")
+}
+)
 
-app.put("/",(req,res)=>{
-    res.send("Replaces the entire resource with the new data provided.");
-})
+//  these functions chains won't get called automatically 
+// we need to explicitly call them using next() in previous function
 
-app.delete("/",(req,res)=>{
-    res.send("used to delete some data from  db")
-})
+app.get("/",(req,res,next)=>{
+    console.log("function 1")
+   next()
+ },
+ (req,res,next)=>{
+     console.log("function 2")
+     next()
+ },
+ (req,res)=>{
+     console.log("route handler")
+      res.send("response") // this will be sent to client
+ }
+ )
 
+ // we can also club these funtions using array notation []  like - app.get("/route",f1,[f2,f3],f4)
+ app.get("/",(req,res,next)=>{
+    console.log("function 1")
+   next()
+ },
+ [(req,res,next)=>{
+     console.log("function 2")
+     next()
+ },
+ (req,res)=>{
+     console.log("route handler")
+      res.send("response") 
+      next()
+ }],
+ (req,res)=>{
+    console.log("route handler")
+     res.send("response") // this will be sent to client
+}
+ )
 
-app.get("/",(req,res)=>{
-    res.send("get api called");
-})
+ // what if the last route handler does next() ? -> your hw 
 
-// dyanmic routes : req.params 
-// this will be only called when an id is provided else it wont get called
-http://localhost:7777/user/xyz - > {id : "xyz"}
-app.get("/user/:id",(req,res)=>{
-    console.log(req.params)
-    res.send(req.params)
-})
-
-// req.query : query parameters /abc?a=5&b=10
-// the req.query will contain an object containg key value pairs {a:6}
-// http://localhost:7777/user?a=hello
-app.get("/user",(req,res)=>{
-    console.log("query params")
-   res.send(req.query)
-})
-
-// using regex while defining routes 
-
-
-// this route works if the url ends with fly like http://localhost:7777/butterfly 
-app.get("/*fly$/",(req,res)=>{
-    console.log("ending with fly")
-   res.send("ending with fly")
-})
-
-// using + -> works for /abbbbc , a(any number of b's)c 
-app.get("/ab+c",(req,res)=>{
-   res.send("+")
-})
-
-// using * means that the letter is optional like here /ac , /abc both will work 
-app.get("/ab*c",(req,res)=>{
-   res.send("*");
-})
-
-// we can also club some char together in route using ()
-
-app.get("/a(bc)*d",(req,res)=>{
-    res.send("*");  // works for /abcd or /ad->  a(bc is optional)d
- })
- 
- app.get("/a(bc)+d",(req,res)=>{
-    res.send("*");  // works for /abcbcbcd ->  a(bc any number of times)d
- })
- 
 app.listen(7777,()=>{
     console.log("server started")
+})
+// note ->
+ // when we call next then only control will move to next function in the chain 
+ // one route can send only 1 response to client 
+ // only one funtion from  function chain can send responce 
+ // how it works is -> client req for the route -> req comes in and a tcp connetion is made btw clent and server 
+ // and once express encounters res.send it sends the response and the tcp connection is lost 
+ // thats why if we try to send againn it will give error 
+ // all the incoming req to the route will go through this middleware chain until it encounters the route handler which actually send back the response
+ 
+
+ // so till now we were using these inner functions but they have a name they are called middlewares 
+ //middleware is a function which has access to the route req , res , next object and comes in between the req res cycle 
+
+ // so why middleware ?
+ // lets discuss with some example 
+ // suppose we want to make some admin routes where admin can perfrom opearions 
+// one thing to read body of req we need to use express.json middleware for now but ill explain it later on
+app.use(express.json())
+ app.post("/admin/getAllData", (req,res)=>{
+    // Auth check logic 
+    const correctPassword = "xxxx";
+    const enteredPassword = req.body.password
+    if(correctPassword === enteredPassword)
+    { 
+        // db logic 
+        res.send("all data sent ");
+    }
+    else res.status(401).send("unauthorized access")
+ })
+
+ app.post("/admin/getPaymentStats", (req,res)=>{
+    // Auth check logic 
+    const correctPassword = "xxxx";
+    const enteredPassword = req.body.password
+    if(correctPassword === enteredPassword)
+    { 
+        // db logic 
+        res.send("all data sent ");
+    }
+    else res.status(401).send("unauthorized access")
+ })
+
+
+// now imagine writing hundereds of admin routes , then writing the same logic for auth check agiain and again is a 
+//bad practice and will also voilate the dry principle(do not repeat yoursself )
+//so here comes the middlewares for the solution 
+
+
+// so we need to define a middleware before all admin routes since order matters 
+
+app.use("/admin",(req,res, next)=>{
+    const correctPassword = "xxxx";
+    const enteredPassword = req.body.password
+    if(correctPassword === enteredPassword)
+    { 
+       //go to route handler 
+       next();
+    }
+    else 
+    {
+        // return from here.. 
+        res.status(401).send("unauthorized access")
+    }
 })
