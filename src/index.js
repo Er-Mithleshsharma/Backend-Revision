@@ -6,6 +6,22 @@ const { default: mongoose } = require("mongoose");
 const app = express();
 
 app.use(express.json());
+//adding user to db
+app.post("/signup", async (req, res) => {
+    const data = req.body
+    try {
+        const { firstName, emailId, password } = req.body;
+        if (!firstName || !emailId || !password) {
+            return res.status(400).send("Missing required fields: name, email, or password");
+        }
+        const user = new User(data);
+        await user.save();
+        res.send("User saved successfully");
+    } catch (err) {
+        console.error(err);
+        res.status(400).send("Something went wrong");
+    }
+});
 
 // api to get all users from db
 app.get("/getallusers", async (req, res) => {
