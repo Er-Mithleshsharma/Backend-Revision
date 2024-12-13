@@ -47,6 +47,9 @@ const userSchema = new mongoose.Schema({
                 throw new error("gender not valid")
             }
         }
+    },
+    photoUrl :{
+        type:String,
     }
     
     
