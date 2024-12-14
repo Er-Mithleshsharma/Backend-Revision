@@ -1,72 +1,73 @@
 const express = require("express");
 const Adminauth = require("./middlewares/AdminAuth");
-const connectDb = require("./config/Db")
+const connectDb = require("./config/Db");
 const User = require("./models/user");
 const { default: mongoose } = require("mongoose");
 const app = express();
-const  validator = require('validator');
-
+const validator = require("validator");
+const validateSignupData = require("./utils/signupValidation");
 app.use(express.json());
+const bcrypt = require("bcrypt");
 
-//API level validations
+app.post("/signup", async (req, res) => {
+  // data validation
+  validateSignupData(req,res);
+  //password encryption
+  const { password, firstName, lastName, emailId,age } = req.body;
+  const hashedPAssword = await bcrypt.hash(password, 10);
+  // saving the user in db
+  const user =  await new User({
+    firstName,
+    lastName, 
+    emailId,
+    password: hashedPAssword,
+    age
+  });
+ await user.save();
+ res.send("data saved")
+});
 
-// suppose you dont want email id to be updated once registerd 
-// we do all this since backend is vlunarable if hacker tries to update or someone tries to put malicious data so wee need checks 
-app.patch('/user',(req,res)=>{
+app.post("/login",async (req,res)=>{
     try {
-         const ALLOWED_UPDATES =["photoUrl", "about" , "gender" , "age"] // only these things can be updated
-    const data = req.body;
-    const isUpdateAllowed = Object.keys(data).every((k)=> ALLOWED_UPDATES.includes(k)) // . every checks for each element if it meets the specific condition or not
-    if(!isUpdateAllowed)
-    {
-        throw new Error("update not allowed")
-    }
-    res.send("updated");
-    //updation in db 
-    }
-    catch (err){
-        res.status(500).send(err.message);
-    }
-  
-})
+        const {emailId, password} = req.body;
+        // validate the email 
+        if(!emailId || !password)
+        {
+            throw new Error("Invalid credentails")
+        }
+        if(!validator.isEmail(emailId))
+        {
+            throw new Error("Invalid credentails")
+        }
+        // getting the user from db
+         const user = await User.findOne({emailId:emailId})
+         if(!user){
+            throw new Error("Invalid Credentials") // email is not there in db
+         }
+         const isPasswordValid = await bcrypt.compare(password, user.password);
+         if(isPasswordValid){
+            res.send("login successfull ")
+         }
+         else 
+         {
+            throw new Error("password incorrect / invalid credentials")
+         }
 
-// signup api validations 
-
-app.post("/signup",(req,res)=>{
-    try{
-         const data = req.body;
-    const {firstName, lastName, password, emailId,skills} = data;
-    if(!(firstName || lastName))
-    {
-        throw new Error("Name not provided")
     }
-    if(skills.length >10 )
-    {
-        throw new Error("you can add max upto 10 skills")
-    }
-    // for validating the email id we can take help of some external library such as validator.js (npm)
-    const email_validation = validator.isEmail(emailId);
-    if(!email_validation)
-    {
-        throw new Error("emailid doesnt seems to be an email id ")
-    }
-    res.send("doing db operations");
-     }
     catch(err)
     {
-        res.status(500).send("error "+err.message)
+         res.status(400).send(err.message)
     }
-   
 })
-
-
 
 // This is how we should start the server -> we should see if the db is connected then only server should be started
 // since if server gets start earlier and anyone hit the api and db hasnt stared yet it may throw errors
-connectDb().then(()=>{
-   app.listen(7777,()=>{
-    console.log("server started")
-})
-}).catch((err)=>{
+connectDb()
+  .then(() => {
+    app.listen(7777, () => {
+      console.log("server started");
+    });
+  })
+  .catch((err) => {
     console.log(err);
-})
+  });
