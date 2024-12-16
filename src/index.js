@@ -6,8 +6,39 @@ const { default: mongoose } = require("mongoose");
 const app = express();
 const validator = require("validator");
 const validateSignupData = require("./utils/signupValidation");
-app.use(express.json());
+const cookieParser = require("cookie-parser")
+const jwt = require("jsonwebtoken")
 const bcrypt = require("bcrypt");
+app.use(express.json());
+app.use(cookieParser())
+app.post("/cookie",(req,res)=>{
+    res.cookie("Token", "kida22g")
+    res.send("kidAA")
+})
+
+app.get("/profile",async (req,res)=>{
+    const token  = req.cookies.token;
+    try {
+    if(!token) 
+    {
+      throw new Error("token not provided");
+    }
+    const decoded = jwt.verify(token , "secret-key") // if token not matched it will throw an error invalid signatuee 
+    console.log("h",decoded) // once error is thrown next lines wont be executed and control will go to catch 
+    const {_id} = decoded;
+    const user = await User.findById(_id)
+    if(!user)
+    {
+      throw new Error("user not found ");
+    }
+    res.send(user)
+  }
+  catch (err)
+  {
+      res.status(400).send(err.message)
+  }
+
+})
 
 app.post("/signup", async (req, res) => {
   // data validation
@@ -46,6 +77,10 @@ app.post("/login",async (req,res)=>{
          }
          const isPasswordValid = await bcrypt.compare(password, user.password);
          if(isPasswordValid){
+          // create a jwt token and send it to user 
+          const jwt_string = jwt.sign({_id:user._id}, "secret-key");
+          res.cookie("token",jwt_string)
+                 
             res.send("login successfull ")
          }
          else 
