@@ -1,108 +1,92 @@
 const express = require("express");
-const Adminauth = require("./middlewares/AdminAuth");
-const connectDb = require("./config/Db");
-const User = require("./models/user");
-const { default: mongoose } = require("mongoose");
+const connectDB = require("./config/database");
 const app = express();
-const validator = require("validator");
-const validateSignupData = require("./utils/signupValidation");
-const cookieParser = require("cookie-parser")
-const jwt = require("jsonwebtoken")
+const User = require("./models/user");
+const { validateSignUpData } = require("./utils/validation");
 const bcrypt = require("bcrypt");
+const cookieParser = require("cookie-parser");
+const jwt = require("jsonwebtoken");
+const { userAuth } = require("./middlewares/auth");
+
 app.use(express.json());
-app.use(cookieParser())
-app.post("/cookie",(req,res)=>{
-    res.cookie("Token", "kida22g")
-    res.send("kidAA")
-})
-
-app.get("/profile",async (req,res)=>{
-    const token  = req.cookies.token;
-    try {
-    if(!token) 
-    {
-      throw new Error("token not provided");
-    }
-    const decoded = jwt.verify(token , "secret-key") // if token not matched it will throw an error invalid signatuee 
-    console.log("h",decoded) // once error is thrown next lines wont be executed and control will go to catch 
-    const {_id} = decoded;
-    const user = await User.findById(_id)
-    if(!user)
-    {
-      throw new Error("user not found ");
-    }
-    res.send(user)
-  }
-  catch (err)
-  {
-      res.status(400).send(err.message)
-  }
-
-})
+app.use(cookieParser());
 
 app.post("/signup", async (req, res) => {
-  // data validation
-  validateSignupData(req,res);
-  //password encryption
-  const { password, firstName, lastName, emailId,age } = req.body;
-  const hashedPAssword = await bcrypt.hash(password, 10);
-  // saving the user in db
-  const user =  await new User({
-    firstName,
-    lastName, 
-    emailId,
-    password: hashedPAssword,
-    age
-  });
- await user.save();
- res.send("data saved")
+  try {
+    // Validation of data
+    validateSignUpData(req);
+
+    const { firstName, lastName, emailId, password } = req.body;
+
+    // Encrypt the password
+    const passwordHash = await bcrypt.hash(password, 10);
+    console.log(passwordHash);
+
+    //   Creating a new instance of the User model
+    const user = new User({
+      firstName,
+      lastName,
+      emailId,
+      password: passwordHash,
+    });
+
+    await user.save();
+    res.send("User Added successfully!");
+  } catch (err) {
+    res.status(400).send("ERROR : " + err.message);
+  }
 });
 
-app.post("/login",async (req,res)=>{
-    try {
-        const {emailId, password} = req.body;
-        // validate the email 
-        if(!emailId || !password)
-        {
-            throw new Error("Invalid credentails")
-        }
-        if(!validator.isEmail(emailId))
-        {
-            throw new Error("Invalid credentails")
-        }
-        // getting the user from db
-         const user = await User.findOne({emailId:emailId})
-         if(!user){
-            throw new Error("Invalid Credentials") // email is not there in db
-         }
-         const isPasswordValid = await bcrypt.compare(password, user.password);
-         if(isPasswordValid){
-          // create a jwt token and send it to user 
-          const jwt_string = jwt.sign({_id:user._id}, "secret-key");
-          res.cookie("token",jwt_string)
-                 
-            res.send("login successfull ")
-         }
-         else 
-         {
-            throw new Error("password incorrect / invalid credentials")
-         }
+app.post("/login", async (req, res) => {
+  try {
+    const { emailId, password } = req.body;
 
+    const user = await User.findOne({ emailId: emailId });
+    if (!user) {
+      throw new Error("Invalid credentials");
     }
-    catch(err)
-    {
-         res.status(400).send(err.message)
-    }
-})
+    const isPasswordValid = await user.validatePassword(password);
 
-// This is how we should start the server -> we should see if the db is connected then only server should be started
-// since if server gets start earlier and anyone hit the api and db hasnt stared yet it may throw errors
-connectDb()
+    if (isPasswordValid) {
+      const token = await user.getJWT();
+
+      res.cookie("token", token, {
+        expires: new Date(Date.now() + 8 * 3600000),
+      });
+      res.send("Login Successful!!!");
+    } else {
+      throw new Error("Invalid credentials");
+    }
+  } catch (err) {
+    res.status(400).send("ERROR : " + err.message);
+  }
+});
+
+app.get("/profile", userAuth, async (req, res) => {
+  try {
+    const user = req.user;
+
+    res.send(user);
+  } catch (err) {
+    res.status(400).send("ERROR : " + err.message);
+  }
+});
+
+app.post("/sendConnectionRequest", userAuth, async (req, res) => {
+  const user = req.user;
+  // Sending a connection request
+  console.log("Sending a connection request");
+
+  res.send(user.firstName + "sent the connect request!");
+});
+
+connectDB()
   .then(() => {
+    console.log("Database connection established...");
     app.listen(7777, () => {
-      console.log("server started");
+      console.log("Server is successfully listening on port 7777...");
     });
   })
   .catch((err) => {
-    console.log(err);
+    console.error("Database cannot be connected!!");
   });
